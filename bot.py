@@ -15,7 +15,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-
 uri = "uri"
 token = "token"
 
@@ -193,7 +192,6 @@ def sing_status(task,user,driver):
     except:
         print('Element not found after login.')
         return "No_submissions"
-
     # Click the submit button
 
 
@@ -203,6 +201,21 @@ def sing_status(task,user,driver):
     # ans1 = ac_problemset.status(msg1)
     # print(ans1)
     # return ans1
+
+def find_time(task,user,driver):
+    try:
+        login_url = f"https://atcoder.jp/contests/{task[:-2]}/submissions?f.Task={task}&f.LanguageName=&f.Status=&f.User={user}"
+        driver.get(login_url)  
+        print(login_url)
+        ac_element = driver.find_element(By.XPATH, '//td[@class="no-break"]/time[@class="fixtime-second"]')
+        print('Found the element after login.')
+        ac_text = ac_element.text
+        print(ac_text)
+        return ac_text
+    except:
+        print('Element not found after login.')
+        return "No_submissions"
+
 
 def status(task,user1,user2):
     link1 = f"{task[:-2]}/submissions?f.Task={task}&f.LanguageName=&f.Status=&f.User={user1}"
@@ -1663,7 +1676,7 @@ async def startMatch(ctx, player_1, player_2, rting: str):
     
     if rting.isdigit():
         rating = int(rting)
-        tags=["implementation","dp","graphs","constructive algorithms","greedy","math","binary search","number theory","sortings"]
+        tags=["implementation","dynamicprogramming","graphs","constructive algorithms","greedy","math","binary search","number theory","sortings"]
         random.shuffle(tags)
         url = f"https://codeforces.com/api/problemset.problems?{tags[0]}"
         # url = f"https://codeforces.com/api/problemset.problems?implementation"
@@ -2474,19 +2487,40 @@ async def unregisterMe(ctx):
 @client.command()
 async def stalk(ctx, userId):
     part_ = participantsList.find_one({"server": ctx.guild.id})['contestants']
+    #print("PART_",part_)
     participant = None
     for i in part_:
         for j in part_[i]:
             if(str(j['id']) == str(userId)[2:len(userId)-1]):
                 participant = j
     if(participant == None):
-        embed = discord.Embed(
-            title="Participant not found!",
-            description=f"No such participant registered for any of the tournaments in the given server",
-            color=discord.Color.red()
-        )
-        await ctx.send(embed=embed)
-        return
+        teamPart_ = teamParticipantsList.find_one({"server": ctx.guild.id})['contestants']
+        teamParticipant = None
+        for i in teamPart_:
+                for j in teamPart_[i]:
+                    if(str(j['id']) == str(userId)[2:len(userId)-1]):
+                        teamParticipant = j
+        if(teamParticipant==None):
+            embed = discord.Embed(
+                title="Participant not found!",
+                description=f"No such participant registered for any of the tournaments in the given server",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+        else:
+            embed = discord.Embed(
+                title="Participant details :",
+                color=discord.Color.gold()
+            )
+            embed.add_field(name=f"Team Name : {teamParticipant['teamName']}   ", value="",inline=False)
+            embed.add_field(name=f"CF : {teamParticipant['cf_handle']}   ", value=f"Max Rating  : {teamParticipant['maxRating']}   ",inline=False)
+            embed.add_field(name=f"AC : {teamParticipant['ac_handle']}   ", value=f"Max Rating  : {teamParticipant['ac_maxR']}   ",inline=False)
+            
+            embed.set_thumbnail(url = teamParticipant['avatar'])
+            await ctx.send(embed=embed)
+            return
+            
     
     embed = discord.Embed(
         title="Participant details :",
@@ -3488,8 +3522,10 @@ async def showTeamMatches(ctx):
     match_status = ""
 
     count=1
+    print("current_round_matches",current_round_matches)
+    print("current_matchlist",current_matchlist)
     for match in current_round_matches:
-        
+        print("match",match)
         player1 = match['player1']
         player2 = match['player2']
 
@@ -3498,8 +3534,12 @@ async def showTeamMatches(ctx):
         if(match["status"] == False):
             match_={}
             flag = False
+            
             for match in current_matchlist:
-                if((match['player1'] == player1 and match['player2'] == player2) or (match['player1'] == player2 and match['player2'] == player1)):
+                print()
+                print("MATCH",match)
+                print()
+                if((match['team1'] == player1 and match['team2'] == player2) or (match['team1'] == player2 and match['team2'] == player1)):
                     flag=True
                     match_=match
                     break
@@ -3631,7 +3671,7 @@ async def teamRoundStatus(ctx,round = -1):
             match_={}
             flag = False
             for match in current_matchlist:
-                if((match['player1'] == player1 and match['player2'] == player2) or (match['player1'] == player2 and match['player2'] == player1)):
+                if((match['team1'] == player1 and match['team2'] == player2) or (match['team1'] == player2 and match['team2'] == player1)):
                     flag=True
                     match_=match
                     break
@@ -4059,19 +4099,338 @@ async def TeamMatchLive(ctx, str1, str2, dic, url, match_time):
         if plt == 'cf':
             flag1 = False
             flag2 = False
-            
-            for i in team1:
 
-                url1=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
-                
-                response_API=requests.get(url1)
-                data=response_API.text
-                parse_json=json.loads(data)
-                submissions=parse_json['result']
+            index=1
+            for x in problem_list:
+                l=[]
+        
+                for i in team1:
+                    try:
+                        url1=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
+                        response_API=requests.get(url1)
+                        data=response_API.text
+                        parse_json=json.loads(data)
+                        submissions=parse_json['result']
+
+                        for y in submissions:
+                            if(y['problem']['name']==x['name'] and y['verdict']=="OK" and x['status']==0):
+                                l.append([y['id'],str1])
+                    except:
+                        pass
+
+                for i in team2:
+                    try:
+                        url1=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
+                        response_API=requests.get(url1)
+                        data=response_API.text
+                        parse_json=json.loads(data)
+                        submissions=parse_json['result']
+
+                        for y in submissions:
+                            if(y['problem']['name']==x['name'] and y['verdict']=="OK" and x['status']==0):
+                                l.append([y['id'],str2])
+                    except:
+                        pass
+                l.sort()
+                print()
+                print("List",l)
+                print()
+                if(len(l)!=0):
+                    solver=l[0][-1]
+                    if(solver==str1):
+                        pc1 = max(pc1,index*100)
+                        x['status']=1
+                        score1=score1+100*index
+                        embed = discord.Embed(
+                            description=f"**{str1}** has solved problem worth {100*index} points",
+                            color=discord.Color.blue()
+                        )
+                        await text_channel.send(embed = embed)
+                        embed = discord.Embed(
+                            title="There's an update in the standings !",
+                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                            color=discord.Color.green()
+                        )
+                        tags1 = ""
+                        for i in teamList[str1]:
+                            tags1 += f"<@{str(i['id'])}>" + "\n"
+                            
+                        tags2 = ""
+                        for i in teamList[str2]:
+                            tags2 += f"<@{str(i['id'])}>" + "\n"
+                            
+
+                        embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
+                        embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
+
+                        value = ""
+                        score = ""
+                        idx=1
+                        for xx in problem_list:
+                            proburl = "https://codeforces.com/contest/" + str(xx['contestId']) + "/problem/" + str(xx['index'])
+                            if(xx['status'] == 0):
+                                value += f"[{xx['name']}]({proburl})" + "\n" 
+                                score += str(idx*100) + "\n";
+                            else:
+                                value += "this problem has been solved" + "\n" 
+                                score += str(idx*100) + "\n";
+                            idx += 1
+                        embed.add_field(name="", value ='', inline=True)
+                        embed.add_field(name="Problem", value = value, inline=True)
+                        embed.add_field(name='Score', value = score, inline = True)
+                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                        await text_channel.send(embed = embed)
+                        continue
+                    else:
+                        pc2 = max(pc2,index*100)
+                        x['status']=1
+                        score2=score2 + 100*index
+                        embed = discord.Embed(
+                            description=f"**{str2}** has solved problem worth {100*index} points",
+                            color=discord.Color.blue()
+                        )
+                        await text_channel.send(embed = embed)
+                        embed = discord.Embed(
+                            title="There's an update in the standings !",
+                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                            color=discord.Color.green()
+                        )
+                        tags1 = ""
+                        for i in teamList[str1]:
+                            tags1 += f"<@{str(i['id'])}>" + "\n"
+                            
+                        tags2 = ""
+                        for i in teamList[str2]:
+                            tags2 += f"<@{str(i['id'])}>" + "\n"
+                            
+
+                        embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
+                        embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
+                        value = ""
+                        score = ""
+                        idx = 1
+                        for xx in problem_list:
+                            proburl = "https://codeforces.com/contest/" + str(xx['contestId']) + "/problem/" + str(xx['index'])
+                            if(xx['status'] == 0):
+                                value += f"[{xx['name']}]({proburl})" + "\n" 
+                                score += str(idx*100) + "\n";
+                            else:
+                                value += "this problem has been solved" + "\n" 
+                                score += str(idx*100) + "\n";
+                            idx += 1
+                        embed.add_field(name="", value ='', inline=True)
+                        embed.add_field(name="Problem", value = value, inline=True)
+                        embed.add_field(name='Score', value = score, inline = True)
+                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                        await text_channel.send(embed = embed)
+                        continue
+                index+=1
+            dic.update({"platform": "cf"})
+        else:
+            options = webdriver.ChromeOptions()
+            options.add_argument('--headless')  # Run Chrome in headless mode (no GUI)
+            driver = webdriver.Chrome(options=options)
+            # login_url = f"https://atcoder.jp/contests/{task[:-2]}/submissions?f.Task={task}&f.LanguageName=&f.Status=&f.User={user}"
+            # print(login_url)
+            login_url = "https://atcoder.jp/login"
+            driver.get(login_url)   
+
+            # Wait for the username field to be present
+            username_field = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.ID, 'username'))
+            )
+            print("1")
+            # Wait for the password field to be present
+            password_field = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.ID, 'password'))
+            )
+            print("2")
+            # Wait for the submit button to be present
+            submit_button = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.ID, 'submit'))
+            )
+            print("3")
+            username_field.send_keys('LockoutBot_IITG')  # Replace 'YourUsername' with your actual username
+            password_field.send_keys('qwerty1234')  # Replace 'YourPassword' with your actual password
+            submit_button.click()
+            
+            index=1
+            for x in problem_list:
+                l=[]
+                for i in team1:
+                    if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
+                        t=find_time(x[0][-8:],i["ac_handle"],driver)
+                        if(t!="No submissions"):
+                            l.append([t,str1])
+
+                for i in team2:
+                    if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
+                        t=find_time(x[0][-8:],i["ac_handle"],driver)
+                        if(t!="No submissions"):
+                            l.append([t,str2])
+
+                l.sort()
+                print()
+                print("Ac_List",l)
+                print()
+
+                if(len(l)!=0):
+                    solver=l[0][-1]
+                    if(solver==str1):
+                        x[1]=1
+                        score1+=100*index
+                        pc1 = max(pc1,100*index)
+                        embed = discord.Embed(
+                                description=f"**{str1}** has solved problem worth {100*index} points",
+                                color=discord.Color.blue()
+                            )
+                        await text_channel.send(embed = embed)
+
+                        embed = discord.Embed(
+                            title="There's an update in the standings !",
+                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                            color=discord.Color.green()
+                        )
+                        tags1 = ""
+                        for i in teamList[str1]:
+                            tags1 += f"<@{str(i['id'])}>" + "\n"
+                            
+                        tags2 = ""
+                        for i in teamList[str2]:
+                            tags2 += f"<@{str(i['id'])}>" + "\n"
+                            
+
+                        embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
+                        embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
+
+                        value = ""
+                        score = ""
+
+                        index = 1
+                        for xx in problem_list:
+                            if(xx[1] == 0):
+                                value += f"[Task {index}]({url+str(xx[0])})"+"\n" 
+                                score += str(index*100) + "\n";
+                            else:
+                                value += "this problem has been solved" + "\n" 
+                                score += str(index*100) + "\n";
+                            index+=1
+                        embed.add_field(name='', value = '', inline = True)
+                        embed.add_field(name="Problem", value = value, inline=True)
+                        embed.add_field(name='Score', value = score, inline = True)
+                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                        await text_channel.send(embed = embed)
+                        continue
+                    else:
+                        x[1]=1
+                        score2+=100*index
+                        pc2 = max(pc2,100*index)
+                        embed = discord.Embed(
+                                description=f"**{str2}** has solved problem worth {100*index} points",
+                                color=discord.Color.blue()
+                            )
+                        await text_channel.send(embed = embed)
+                        embed = discord.Embed(
+                            title="There's an update in the standings !",
+                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                            color=discord.Color.green()
+                        )
+                        tags1 = ""
+                        for i in teamList[str1]:
+                            tags1 += f"<@{str(i['id'])}>" + "\n"
+                            
+                        tags2 = ""
+                        for i in teamList[str2]:
+                            tags2 += f"<@{str(i['id'])}>" + "\n"
+                            
+                        value = ""
+                        score = ""
+                        index = 1
+                        for xx in problem_list:
+                            if(xx[1] == 0):
+                                value += f"[Task {index}]({url+str(xx[0])})"+"\n"  
+                                score += str(index*100) + "\n";
+                            else:
+                                value += "this problem has been solved" + "\n" 
+                                score += str(index*100) + "\n";
+                            index=index+1
+                        embed.add_field(name='', value = '', inline = True)
+                        embed.add_field(name="Problem", value = value, inline=True)
+                        embed.add_field(name='Score', value = score, inline = True)
+                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                        await text_channel.send(embed = embed)
+                        continue
+                index=index+1
+            dic.update({"platform":"ac"})
+
+        
+        dic.update({"Problems":problem_list})
+        dic.update({"Scores":[score1,score2]})
+        dic.update({"problem_rating":[pc1,pc2]})
+        scores = [score1,score2]
+        pc = [pc1,pc2]
+        current_time=time.ctime()[11:19]
+        hours=int(current_time[0:2])
+        minutes=int(current_time[3:5])
+        seconds=int(current_time[6:8])
+        time_elapsed=(hours-hours_start)*60+(minutes-minutes_start)
+
+        if(time_elapsed > match_time-1):
+            print(time_elapsed)
+            print(match_time)
+            embed = discord.Embed(
+                title="Time over!",
+                description="The match is finished",
+                color=discord.Color.red()
+            )
+            await text_channel.send(embed = embed)
+
+
+
+
+
+            if plt == 'cf':
+                flag1 = False
+                flag2 = False
+
                 index=1
                 for x in problem_list:
-                    for y in submissions:
-                        if(y['problem']['name']==x['name']and y['verdict']=="OK"and x['status']==0):
+                    l=[]
+            
+                    for i in team1:
+                        try:
+                            url1=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
+                            response_API=requests.get(url1)
+                            data=response_API.text
+                            parse_json=json.loads(data)
+                            submissions=parse_json['result']
+
+                            for y in submissions:
+                                if(y['problem']['name']==x['name'] and y['verdict']=="OK" and x['status']==0):
+                                    l.append([y['id'],str1])
+                        except:
+                            pass
+
+                    for i in team2:
+                        try:
+                            url1=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
+                            response_API=requests.get(url1)
+                            data=response_API.text
+                            parse_json=json.loads(data)
+                            submissions=parse_json['result']
+
+                            for y in submissions:
+                                if(y['problem']['name']==x['name'] and y['verdict']=="OK" and x['status']==0):
+                                    l.append([y['id'],str2])
+                        except:
+                            pass
+                    l.sort()
+                    print()
+                    print("List",l)
+                    print()
+                    if(len(l)!=0):
+                        solver=l[0][-1]
+                        if(solver==str1):
                             pc1 = max(pc1,index*100)
                             x['status']=1
                             score1=score1+100*index
@@ -4096,7 +4455,7 @@ async def TeamMatchLive(ctx, str1, str2, dic, url, match_time):
 
                             embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
                             embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
-        
+
                             value = ""
                             score = ""
                             idx=1
@@ -4115,18 +4474,7 @@ async def TeamMatchLive(ctx, str1, str2, dic, url, match_time):
                             embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
                             await text_channel.send(embed = embed)
                             continue
-                    index = index + 1
-            for i in team2:
-                url2=f"https://codeforces.com/api/user.status?handle={i['cf_handle']}&from=1&count=10"
-                    
-                response_API=requests.get(url2)
-                data=response_API.text
-                parse_json=json.loads(data)
-                submissions=parse_json['result']
-                index=1
-                for x in problem_list:
-                    for y in submissions:
-                        if(y['problem']['name']==x['name']and y['verdict']=="OK"and x['status']==0):
+                        else:
                             pc2 = max(pc2,index*100)
                             x['status']=1
                             score2=score2 + 100*index
@@ -4169,154 +4517,156 @@ async def TeamMatchLive(ctx, str1, str2, dic, url, match_time):
                             embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
                             await text_channel.send(embed = embed)
                             continue
-                    index=index+1
-            dic.update({"platform": "cf"})
-        else:
-            options = webdriver.ChromeOptions()
-            options.add_argument('--headless')  # Run Chrome in headless mode (no GUI)
-            driver = webdriver.Chrome(options=options)
-            # login_url = f"https://atcoder.jp/contests/{task[:-2]}/submissions?f.Task={task}&f.LanguageName=&f.Status=&f.User={user}"
-            # print(login_url)
-            login_url = "https://atcoder.jp/login"
-            driver.get(login_url)   
+                    index+=1
+                dic.update({"platform": "cf"})
+            else:
+                options = webdriver.ChromeOptions()
+                options.add_argument('--headless')  # Run Chrome in headless mode (no GUI)
+                driver = webdriver.Chrome(options=options)
+                # login_url = f"https://atcoder.jp/contests/{task[:-2]}/submissions?f.Task={task}&f.LanguageName=&f.Status=&f.User={user}"
+                # print(login_url)
+                login_url = "https://atcoder.jp/login"
+                driver.get(login_url)   
 
-            # Wait for the username field to be present
-            username_field = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.ID, 'username'))
-            )
-            print("1")
-            # Wait for the password field to be present
-            password_field = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.ID, 'password'))
-            )
-            print("2")
-            # Wait for the submit button to be present
-            submit_button = WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.ID, 'submit'))
-            )
-            print("3")
-            username_field.send_keys('LockoutBot_IITG')  # Replace 'YourUsername' with your actual username
-            password_field.send_keys('qwerty1234')  # Replace 'YourPassword' with your actual password
-            submit_button.click()
-            index = 1
-            for i in team1:
-
+                # Wait for the username field to be present
+                username_field = WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.ID, 'username'))
+                )
+                print("1")
+                # Wait for the password field to be present
+                password_field = WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.ID, 'password'))
+                )
+                print("2")
+                # Wait for the submit button to be present
+                submit_button = WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.ID, 'submit'))
+                )
+                print("3")
+                username_field.send_keys('LockoutBot_IITG')  # Replace 'YourUsername' with your actual username
+                password_field.send_keys('qwerty1234')  # Replace 'YourPassword' with your actual password
+                submit_button.click()
+                
+                index=1
                 for x in problem_list:
-                    print(x[0][-8:])
-                    if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
-                        x[1]=1
-                        score1+=100*index
-                        pc1 = max(pc1,100*index)
-                        embed = discord.Embed(
-                                description=f"**{str1}** has solved problem worth {100*index} points",
-                                color=discord.Color.blue()
+                    l=[]
+                    for i in team1:
+                        if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
+                            t=find_time(x[0][-8:],i["ac_handle"],driver)
+                            if(t!="No submissions"):
+                                l.append([t,str1])
+
+                    for i in team2:
+                        if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
+                            t=find_time(x[0][-8:],i["ac_handle"],driver)
+                            if(t!="No submissions"):
+                                l.append([t,str2])
+
+                    l.sort()
+                    print()
+                    print("Ac_List",l)
+                    print()
+
+                    if(len(l)!=0):
+                        solver=l[0][-1]
+                        if(solver==str1):
+                            x[1]=1
+                            score1+=100*index
+                            pc1 = max(pc1,100*index)
+                            embed = discord.Embed(
+                                    description=f"**{str1}** has solved problem worth {100*index} points",
+                                    color=discord.Color.blue()
+                                )
+                            await text_channel.send(embed = embed)
+
+                            embed = discord.Embed(
+                                title="There's an update in the standings !",
+                                # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                                color=discord.Color.green()
                             )
-                        await text_channel.send(embed = embed)
+                            tags1 = ""
+                            for i in teamList[str1]:
+                                tags1 += f"<@{str(i['id'])}>" + "\n"
+                                
+                            tags2 = ""
+                            for i in teamList[str2]:
+                                tags2 += f"<@{str(i['id'])}>" + "\n"
+                                
 
-                        embed = discord.Embed(
-                            title="There's an update in the standings !",
-                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
-                            color=discord.Color.green()
-                        )
-                        tags1 = ""
-                        for i in teamList[str1]:
-                            tags1 += f"<@{str(i['id'])}>" + "\n"
-                            
-                        tags2 = ""
-                        for i in teamList[str2]:
-                            tags2 += f"<@{str(i['id'])}>" + "\n"
-                            
+                            embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
+                            embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
 
-                        embed.add_field(name=f"{str1} : {score1}",value=tags1,inline=True)
-                        embed.add_field(name=f"{str2} : {score2}",value=tags2,inline=True)
-        
-                        value = ""
-                        score = ""
+                            value = ""
+                            score = ""
 
-                        index = 1
-                        for xx in problem_list:
-                            if(xx[1] == 0):
-                                value += f"[Task {index}]({url+str(xx[0])})"+"\n" 
-                                score += str(index*100) + "\n";
-                            else:
-                                value += "this problem has been solved" + "\n" 
-                                score += str(index*100) + "\n";
-                            index+=1
-                        embed.add_field(name='', value = '', inline = True)
-                        embed.add_field(name="Problem", value = value, inline=True)
-                        embed.add_field(name='Score', value = score, inline = True)
-                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
-                        await text_channel.send(embed = embed)
-                        continue
-                    
-                    index=index+1
-
-            index=1
-            for i in team2:
-                for x in problem_list:
-                    if sing_status(x[0][-8:],i["ac_handle"],driver) == 'AC' and x[1] == 0:
-                        x[1]=1
-                        score2+=100*index
-                        pc2 = max(pc2,100*index)
-                        embed = discord.Embed(
-                                description=f"**{str2}** has solved problem worth {100*index} points",
-                                color=discord.Color.blue()
+                            index = 1
+                            for xx in problem_list:
+                                if(xx[1] == 0):
+                                    value += f"[Task {index}]({url+str(xx[0])})"+"\n" 
+                                    score += str(index*100) + "\n";
+                                else:
+                                    value += "this problem has been solved" + "\n" 
+                                    score += str(index*100) + "\n";
+                                index+=1
+                            embed.add_field(name='', value = '', inline = True)
+                            embed.add_field(name="Problem", value = value, inline=True)
+                            embed.add_field(name='Score', value = score, inline = True)
+                            embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                            await text_channel.send(embed = embed)
+                            continue
+                        else:
+                            x[1]=1
+                            score2+=100*index
+                            pc2 = max(pc2,100*index)
+                            embed = discord.Embed(
+                                    description=f"**{str2}** has solved problem worth {100*index} points",
+                                    color=discord.Color.blue()
+                                )
+                            await text_channel.send(embed = embed)
+                            embed = discord.Embed(
+                                title="There's an update in the standings !",
+                                # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
+                                color=discord.Color.green()
                             )
-                        await text_channel.send(embed = embed)
-                        embed = discord.Embed(
-                            title="There's an update in the standings !",
-                            # description=f"**{str1}** : {score1}   **{str2}** : {score2}",
-                            color=discord.Color.green()
-                        )
-                        tags1 = ""
-                        for i in teamList[str1]:
-                            tags1 += f"<@{str(i['id'])}>" + "\n"
-                            
-                        tags2 = ""
-                        for i in teamList[str2]:
-                            tags2 += f"<@{str(i['id'])}>" + "\n"
-                            
-                        value = ""
-                        score = ""
-                        index = 1
-                        for xx in problem_list:
-                            if(xx[1] == 0):
-                                value += f"[Task {index}]({url+str(xx[0])})"+"\n"  
-                                score += str(index*100) + "\n";
-                            else:
-                                value += "this problem has been solved" + "\n" 
-                                score += str(index*100) + "\n";
-                            index=index+1
-                        embed.add_field(name='', value = '', inline = True)
-                        embed.add_field(name="Problem", value = value, inline=True)
-                        embed.add_field(name='Score', value = score, inline = True)
-                        embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
-                        await text_channel.send(embed = embed)
-                        continue
+                            tags1 = ""
+                            for i in teamList[str1]:
+                                tags1 += f"<@{str(i['id'])}>" + "\n"
+                                
+                            tags2 = ""
+                            for i in teamList[str2]:
+                                tags2 += f"<@{str(i['id'])}>" + "\n"
+                                
+                            value = ""
+                            score = ""
+                            index = 1
+                            for xx in problem_list:
+                                if(xx[1] == 0):
+                                    value += f"[Task {index}]({url+str(xx[0])})"+"\n"  
+                                    score += str(index*100) + "\n";
+                                else:
+                                    value += "this problem has been solved" + "\n" 
+                                    score += str(index*100) + "\n";
+                                index=index+1
+                            embed.add_field(name='', value = '', inline = True)
+                            embed.add_field(name="Problem", value = value, inline=True)
+                            embed.add_field(name='Score', value = score, inline = True)
+                            embed.set_footer(text=f"Remaining Time : {match_time-time_elapsed} minutes")                   
+                            await text_channel.send(embed = embed)
+                            continue
                     index=index+1
-            dic.update({"platform":"ac"})
+                dic.update({"platform":"ac"})
 
-        
-        dic.update({"Problems":problem_list})
-        dic.update({"Scores":[score1,score2]})
-        dic.update({"problem_rating":[pc1,pc2]})
-        scores = [score1,score2]
-        pc = [pc1,pc2]
-        current_time=time.ctime()[11:19]
-        hours=int(current_time[0:2])
-        minutes=int(current_time[3:5])
-        seconds=int(current_time[6:8])
-        time_elapsed=(hours-hours_start)*60+(minutes-minutes_start)
 
-        if(time_elapsed > match_time-1):
-            print(time_elapsed)
-            print(match_time)
-            embed = discord.Embed(
-                title="Time over!",
-                description="The match is finished",
-                color=discord.Color.red()
-            )
-            await text_channel.send(embed = embed)
+
+            dic.update({"Problems":problem_list})
+            dic.update({"Scores":[score1,score2]})
+            dic.update({"problem_rating":[pc1,pc2]})
+            scores = [score1,score2]
+            pc = [pc1,pc2]
+
+
+
+            
             await stopTeamMatch(ctx)
             return
 
@@ -4574,7 +4924,7 @@ async def startTeamMatch(ctx, teamName1, teamName2, rting: str):
     xd = current_matches.find_one({"server":ctx.guild.id})["matches"][tourneyName]
     newxd = []
     for match in xd:
-        if((team1==match["player1"] and team2==match["player2"]) or (team1==match["player2"] and team2==match["player1"])):
+        if((team1==match["team1"] and team2==match["team2"]) or (team1==match["team2"] and team2==match["team1"])):
             flag=True
             # print(1)
         else:
@@ -4630,16 +4980,22 @@ async def startTeamMatch(ctx, teamName1, teamName2, rting: str):
             else:
                 match_time = mins
         else:
-            await text_channel.send('Invalid format. Please enter a number next time.')
+            embed=discord.Embed(
+            title="Invalid format. Please enter a number next time.",
+            color=discord.Color.red()
+            )
+            await text_channel.send(embed=embed)
             return
+        
     embed=discord.Embed(
         title="Fetching problems...",
         color=discord.Color.green()
         )
     await text_channel.send(embed=embed)
+    
     if rting.isdigit():
         rating = int(rting)
-        tags=["implementation","dp","graphs","constructive algorithms","greedy","math","binary search","number theory","sortings"]
+        tags=["implementation","dynamicprogramming","graphs","constructive algorithms","greedy","math","binary search","number theory","sortings"]
         random.shuffle(tags)
         url = f"https://codeforces.com/api/problemset.problems?{tags[0]}"
         # url = f"https://codeforces.com/api/problemset.problems?implementation"
