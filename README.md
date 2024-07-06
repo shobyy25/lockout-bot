@@ -27,6 +27,7 @@ To use the bot install the required dependencies:
 
 * [requests](https://requests.readthedocs.io/en/latest/user/install/)
 * [asyncio](https://pypi.org/project/asyncio/)
+* [selenium](https://selenium-python.readthedocs.io/installation.html)
 * [bs4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/#installing-beautiful-soup)
 * [discord](https://pypi.org/project/discord.py/)
 * [pymongo](https://pypi.org/project/pymongo/)
