@@ -21,7 +21,7 @@ The commands for all these features can be retrieved by executing the  ```!help`
 # How to Use:
 The Lockout Bot can be installed locally by running the below command.
 
-```git clone https://github.com/addy-1406/Lockout-Bot.git```
+```git clone https://github.com/bOrax10/lockout-bot.git```
 
 To use the bot install the required dependencies:
 
